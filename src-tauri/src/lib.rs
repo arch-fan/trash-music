@@ -3,7 +3,6 @@ mod plugin_manager;
 use std::sync::Mutex;
 
 use plugin_manager::{PluginDescriptor, PluginManager};
-use serde_json::Value;
 use tauri::{webview::PageLoadEvent, AppHandle, Manager, State};
 
 struct AppState {
@@ -35,38 +34,10 @@ fn plugin_list(state: State<'_, AppState>) -> Result<Vec<PluginDescriptor>, Stri
 }
 
 #[tauri::command]
-fn plugin_set_enabled(
-    plugin_id: String,
-    enabled: bool,
-    state: State<'_, AppState>,
-) -> Result<PluginDescriptor, String> {
-    debug_plugin_ipc(&format!("plugin_set_enabled {plugin_id}={enabled}"));
-    let mut manager = state
-        .plugin_manager
-        .lock()
-        .map_err(|_| "plugin manager lock poisoned".to_string())?;
-    manager.set_enabled(&plugin_id, enabled)
-}
-
-#[tauri::command]
-fn plugin_set_config(
-    plugin_id: String,
-    config: Value,
-    state: State<'_, AppState>,
-) -> Result<PluginDescriptor, String> {
-    debug_plugin_ipc(&format!("plugin_set_config {plugin_id}"));
-    let mut manager = state
-        .plugin_manager
-        .lock()
-        .map_err(|_| "plugin manager lock poisoned".to_string())?;
-    manager.set_config(&plugin_id, config)
-}
-
-#[tauri::command]
 fn plugin_dispatch(
     plugin_id: String,
     event: String,
-    payload: Value,
+    payload: serde_json::Value,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     debug_plugin_ipc(&format!("plugin_dispatch {plugin_id}:{event}"));
@@ -97,8 +68,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             plugin_list,
-            plugin_set_enabled,
-            plugin_set_config,
             plugin_dispatch
         ])
         .run(tauri::generate_context!())

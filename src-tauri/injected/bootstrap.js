@@ -8,10 +8,6 @@
   const state = {
     descriptors: [],
     instances: new Map(),
-    panelOpen: false,
-    panel: null,
-    panelBody: null,
-    toggleButton: null,
   };
 
   const descriptorById = () =>
@@ -93,9 +89,7 @@
 
   const syncPlugins = async () => {
     try {
-      const descriptors = await invoke("plugin_list");
-      state.descriptors = descriptors;
-      renderPluginPanel();
+      state.descriptors = await invoke("plugin_list");
       syncRendererPlugins();
     } catch (error) {
       console.error("trash-music plugin sync failed", error);
@@ -103,14 +97,6 @@
   };
 
   const pluginApi = {
-    async setEnabled(pluginId, enabled) {
-      await invoke("plugin_set_enabled", { pluginId, enabled });
-      await syncPlugins();
-    },
-    async setConfig(pluginId, config) {
-      await invoke("plugin_set_config", { pluginId, config });
-      await syncPlugins();
-    },
     async dispatch(pluginId, event, payload) {
       try {
         await invoke("plugin_dispatch", { pluginId, event, payload });
@@ -181,7 +167,6 @@
       start(api, descriptor) {
         let currentDescriptor = descriptor;
         let config = { ...(descriptor.config || {}) };
-        let saveTimer = 0;
         let hudTimer = 0;
         let restoreApplied = false;
         let currentPlayerBar = null;
@@ -228,13 +213,6 @@
           }, 1200);
         };
 
-        const saveConfig = () => {
-          window.clearTimeout(saveTimer);
-          saveTimer = window.setTimeout(() => {
-            api.setConfig("precise-volume-control", config);
-          }, 400);
-        };
-
         const setVolume = (value) => {
           const player = getPlayerApi();
           if (!player || typeof player.setVolume !== "function") {
@@ -243,8 +221,6 @@
 
           const nextValue = clamp(Math.round(value), 0, 100);
           player.setVolume(nextValue);
-          config.savedVolume = nextValue;
-          saveConfig();
           showHud(nextValue);
         };
 
@@ -344,7 +320,6 @@
           },
           stop() {
             window.clearInterval(interval);
-            window.clearTimeout(saveTimer);
             window.clearTimeout(hudTimer);
             window.removeEventListener("keydown", handleKeyDown, true);
             if (currentPlayerBar) {
@@ -393,274 +368,7 @@
     }
   };
 
-  const togglePanel = (force) => {
-    state.panelOpen = typeof force === "boolean" ? force : !state.panelOpen;
-    if (state.panel) {
-      state.panel.style.display = state.panelOpen ? "flex" : "none";
-    }
-  };
-
-  const renderFieldControl = (descriptor, field) => {
-    const value = descriptor.config[field.key];
-    const wrapper = createElement("label");
-    setStyle(wrapper, {
-      display: "grid",
-      gap: "6px",
-      marginTop: "8px",
-    });
-
-    const label = createElement("span", field.label);
-    setStyle(label, {
-      color: "rgba(255, 255, 255, 0.72)",
-      fontSize: "12px",
-      fontWeight: "600",
-      letterSpacing: "0.02em",
-    });
-    wrapper.appendChild(label);
-
-    if (field.kind === "boolean") {
-      const input = document.createElement("input");
-      input.type = "checkbox";
-      input.checked = Boolean(value);
-      setStyle(input, {
-        width: "16px",
-        height: "16px",
-      });
-      input.addEventListener("change", () => {
-        const nextConfig = { ...descriptor.config, [field.key]: input.checked };
-        pluginApi.setConfig(descriptor.id, nextConfig);
-      });
-      wrapper.appendChild(input);
-      return wrapper;
-    }
-
-    const input = document.createElement("input");
-    input.type = field.kind === "number" ? "number" : "text";
-    input.value =
-      value === undefined || value === null
-        ? ""
-        : field.kind === "number"
-          ? String(Number(value))
-          : String(value);
-    if (field.placeholder) {
-      input.placeholder = field.placeholder;
-    }
-    if (field.min !== null && field.min !== undefined) {
-      input.min = String(field.min);
-    }
-    if (field.max !== null && field.max !== undefined) {
-      input.max = String(field.max);
-    }
-    if (field.step !== null && field.step !== undefined) {
-      input.step = String(field.step);
-    }
-    setStyle(input, {
-      width: "100%",
-      boxSizing: "border-box",
-      padding: "10px 12px",
-      borderRadius: "10px",
-      border: "1px solid rgba(255, 255, 255, 0.12)",
-      background: "rgba(255, 255, 255, 0.06)",
-      color: "#fff",
-      outline: "none",
-      fontSize: "14px",
-    });
-    input.addEventListener("change", () => {
-      const nextValue =
-        field.kind === "number"
-          ? Number(input.value || field.min || 0)
-          : input.value.trim();
-      const nextConfig = { ...descriptor.config, [field.key]: nextValue };
-      pluginApi.setConfig(descriptor.id, nextConfig);
-    });
-    wrapper.appendChild(input);
-    return wrapper;
-  };
-
-  const renderPluginPanel = () => {
-    if (!state.panelBody) {
-      return;
-    }
-
-    state.panelBody.replaceChildren();
-
-    for (const descriptor of state.descriptors) {
-      const card = createElement("section");
-      setStyle(card, {
-        display: "grid",
-        gap: "10px",
-        padding: "16px",
-        borderRadius: "16px",
-        background: "rgba(255, 255, 255, 0.06)",
-        border: "1px solid rgba(255, 255, 255, 0.09)",
-      });
-
-      const header = createElement("div");
-      setStyle(header, {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "12px",
-      });
-
-      const titleBox = createElement("div");
-      const title = createElement("strong", descriptor.name);
-      setStyle(title, {
-        fontSize: "15px",
-        fontWeight: "700",
-      });
-      const description = createElement("p", descriptor.description);
-      setStyle(description, {
-        margin: "6px 0 0 0",
-        color: "rgba(255, 255, 255, 0.72)",
-        fontSize: "13px",
-        lineHeight: "1.45",
-      });
-      titleBox.appendChild(title);
-      titleBox.appendChild(description);
-
-      const enabled = document.createElement("input");
-      enabled.type = "checkbox";
-      enabled.checked = Boolean(descriptor.enabled);
-      setStyle(enabled, {
-        width: "18px",
-        height: "18px",
-        flexShrink: "0",
-      });
-      enabled.addEventListener("change", () => {
-        pluginApi.setEnabled(descriptor.id, enabled.checked);
-      });
-
-      header.appendChild(titleBox);
-      header.appendChild(enabled);
-      card.appendChild(header);
-
-      for (const field of descriptor.fields) {
-        card.appendChild(renderFieldControl(descriptor, field));
-      }
-
-      state.panelBody.appendChild(card);
-    }
-  };
-
-  const ensurePanel = () => {
-    if (state.panel) {
-      return;
-    }
-
-    const button = createElement("button", "Plugins");
-    setStyle(button, {
-      position: "fixed",
-      right: "24px",
-      bottom: "24px",
-      zIndex: "2147483647",
-      border: "0",
-      borderRadius: "999px",
-      padding: "10px 14px",
-      background: "rgba(17, 17, 17, 0.9)",
-      color: "#fff",
-      fontWeight: "700",
-      fontSize: "13px",
-      letterSpacing: "0.02em",
-      boxShadow: "0 18px 40px rgba(0, 0, 0, 0.35)",
-      cursor: "pointer",
-    });
-    button.addEventListener("click", () => togglePanel());
-    state.toggleButton = button;
-
-    const panel = createElement("aside");
-    setStyle(panel, {
-      position: "fixed",
-      top: "84px",
-      right: "24px",
-      zIndex: "2147483647",
-      width: "360px",
-      maxWidth: "calc(100vw - 32px)",
-      maxHeight: "calc(100vh - 128px)",
-      display: "none",
-      flexDirection: "column",
-      gap: "16px",
-      padding: "18px",
-      overflow: "auto",
-      borderRadius: "22px",
-      background: "rgba(10, 10, 10, 0.94)",
-      color: "#fff",
-      border: "1px solid rgba(255, 255, 255, 0.09)",
-      boxShadow: "0 26px 80px rgba(0, 0, 0, 0.42)",
-      backdropFilter: "blur(16px)",
-    });
-
-    const header = createElement("div");
-    setStyle(header, {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: "12px",
-    });
-    const title = createElement("strong", "Trash Music plugins");
-    setStyle(title, {
-      fontSize: "16px",
-      fontWeight: "800",
-      letterSpacing: "0.01em",
-    });
-    const close = createElement("button", "Close");
-    setStyle(close, {
-      border: "0",
-      borderRadius: "999px",
-      padding: "8px 12px",
-      background: "rgba(255, 255, 255, 0.1)",
-      color: "#fff",
-      cursor: "pointer",
-      fontWeight: "600",
-    });
-    close.addEventListener("click", () => togglePanel(false));
-    header.appendChild(title);
-    header.appendChild(close);
-
-    const subtitle = createElement(
-      "p",
-      "Toggle plugins and adjust their defaults without leaving the player.",
-    );
-    setStyle(subtitle, {
-      margin: "0",
-      color: "rgba(255, 255, 255, 0.7)",
-      fontSize: "13px",
-      lineHeight: "1.45",
-    });
-
-    const body = createElement("div");
-    setStyle(body, {
-      display: "grid",
-      gap: "12px",
-    });
-
-    panel.appendChild(header);
-    panel.appendChild(subtitle);
-    panel.appendChild(body);
-
-    document.documentElement.appendChild(button);
-    document.documentElement.appendChild(panel);
-
-    state.panel = panel;
-    state.panelBody = body;
-  };
-
   const bootstrap = async () => {
-    ensurePanel();
-    document.addEventListener(
-      "keydown",
-      (event) => {
-        if ((event.ctrlKey || event.metaKey) && event.key === ",") {
-          event.preventDefault();
-          togglePanel();
-        }
-        if (event.key === "Escape" && state.panelOpen) {
-          togglePanel(false);
-        }
-      },
-      true,
-    );
-
     await syncPlugins();
   };
 

@@ -100,6 +100,7 @@
 
             meta = with lib; {
               description = "YouTube Music desktop wrapper built with Tauri";
+              desktopFileName = "trash-music.desktop";
               homepage = "https://music.youtube.com/";
               license = licenses.mit;
               mainProgram = "trash-music";

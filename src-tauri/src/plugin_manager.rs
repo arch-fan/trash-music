@@ -15,6 +15,8 @@ use tauri::{AppHandle, Manager};
 
 const DEFAULT_DISCORD_CLIENT_ID: &str = "1177081335727267940";
 const DISCORD_RECONNECT_COOLDOWN: Duration = Duration::from_secs(15);
+const LEGACY_PLUGIN_SETTINGS_FILE: &str = "plugin-settings.json";
+const PLUGIN_STATE_FILE: &str = "plugin-state.json";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -93,7 +95,6 @@ struct PluginDefinition {
 }
 
 pub struct PluginManager {
-    path: PathBuf,
     stored: StoredPlugins,
     discord: DiscordController,
 }
@@ -107,21 +108,26 @@ impl PluginManager {
         fs::create_dir_all(&data_dir)
             .map_err(|error| format!("failed to create data dir {data_dir:?}: {error}"))?;
 
-        let path = data_dir.join("plugin-settings.json");
-        let stored = match fs::read_to_string(&path) {
-            Ok(contents) => serde_json::from_str::<StoredPlugins>(&contents)
-                .map_err(|error| format!("failed to parse {path:?}: {error}"))?,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => StoredPlugins::default(),
-            Err(error) => return Err(format!("failed to read {path:?}: {error}")),
-        };
+        let config_dir = app
+            .path()
+            .app_config_dir()
+            .map_err(|error| format!("failed to resolve app config dir: {error}"))?;
+        fs::create_dir_all(&config_dir)
+            .map_err(|error| format!("failed to create config dir {config_dir:?}: {error}"))?;
+
+        let managed_path = config_dir.join(LEGACY_PLUGIN_SETTINGS_FILE);
+        let state_path = data_dir.join(PLUGIN_STATE_FILE);
+        let legacy_path = data_dir.join(LEGACY_PLUGIN_SETTINGS_FILE);
+        let stored = read_stored_plugins(&managed_path)?
+            .or_else(|| read_stored_plugins(&state_path).ok().flatten())
+            .or_else(|| read_stored_plugins(&legacy_path).ok().flatten())
+            .unwrap_or_default();
 
         let mut manager = Self {
-            path,
             stored,
             discord: DiscordController::default(),
         };
         manager.ensure_defaults();
-        manager.persist()?;
         manager.refresh_backend("discord-rpc");
         Ok(manager)
     }
@@ -131,57 +137,6 @@ impl PluginManager {
             .iter()
             .map(|definition| self.describe_plugin(*definition))
             .collect()
-    }
-
-    pub fn set_enabled(
-        &mut self,
-        plugin_id: &str,
-        enabled: bool,
-    ) -> Result<PluginDescriptor, String> {
-        let definition =
-            plugin_definition(plugin_id).ok_or_else(|| format!("unknown plugin: {plugin_id}"))?;
-        let record = self
-            .stored
-            .plugins
-            .entry(plugin_id.to_string())
-            .or_insert_with(StoredPlugin::default);
-
-        record.enabled = enabled;
-        self.persist()?;
-        self.refresh_backend(plugin_id);
-
-        Ok(self.describe_plugin(definition))
-    }
-
-    pub fn set_config(
-        &mut self,
-        plugin_id: &str,
-        config_update: Value,
-    ) -> Result<PluginDescriptor, String> {
-        let definition =
-            plugin_definition(plugin_id).ok_or_else(|| format!("unknown plugin: {plugin_id}"))?;
-
-        let update = match config_update {
-            Value::Object(map) => map,
-            _ => return Err("plugin config must be an object".to_string()),
-        };
-
-        let mut merged = self.merged_config(definition);
-        for (key, value) in update {
-            merged.insert(key, value);
-        }
-
-        let record = self
-            .stored
-            .plugins
-            .entry(plugin_id.to_string())
-            .or_insert_with(StoredPlugin::default);
-        record.config = merged;
-
-        self.persist()?;
-        self.refresh_backend(plugin_id);
-
-        Ok(self.describe_plugin(definition))
     }
 
     pub fn dispatch(&mut self, plugin_id: &str, event: &str, payload: Value) -> Result<(), String> {
@@ -247,13 +202,6 @@ impl PluginManager {
         config
     }
 
-    fn persist(&self) -> Result<(), String> {
-        let contents = serde_json::to_vec_pretty(&self.stored)
-            .map_err(|error| format!("failed to serialize plugin config: {error}"))?;
-        fs::write(&self.path, contents)
-            .map_err(|error| format!("failed to write {:?}: {error}", self.path))
-    }
-
     fn refresh_backend(&mut self, plugin_id: &str) {
         if plugin_id == "discord-rpc" {
             if let Some(definition) = plugin_definition("discord-rpc") {
@@ -262,6 +210,16 @@ impl PluginManager {
                     .apply_plugin_state(descriptor.enabled, &descriptor.config);
             }
         }
+    }
+}
+
+fn read_stored_plugins(path: &PathBuf) -> Result<Option<StoredPlugins>, String> {
+    match fs::read_to_string(path) {
+        Ok(contents) => serde_json::from_str::<StoredPlugins>(&contents)
+            .map(Some)
+            .map_err(|error| format!("failed to parse {path:?}: {error}")),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!("failed to read {path:?}: {error}")),
     }
 }
 

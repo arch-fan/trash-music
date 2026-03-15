@@ -104,7 +104,7 @@ in
   config = mkIf cfg.enable {
     home.packages = [ cfg.package ];
 
-    xdg.dataFile."com.archfan.trashmusic/plugin-settings.json".text =
+    xdg.configFile."com.archfan.trashmusic/plugin-settings.json".text =
       builtins.toJSON pluginSettings;
   };
 }

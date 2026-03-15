@@ -33,20 +33,19 @@ The app now ships with two built-in plugins enabled by default:
 - `Discord RPC`
 - `Precise Volume Control`
 
-Open the in-app plugin panel with the floating `Plugins` button or `Ctrl+,`.
-From there you can enable or disable plugins and adjust their exposed settings.
+Plugin configuration is read-only at runtime and is intended to be managed by
+Nix or Home Manager via JSON, not from an in-app settings panel.
 
-Plugin settings are stored separately from the YouTube Music web session.
-The web session itself continues to live under:
+The YouTube Music web session itself lives under:
 
 ```bash
 ~/.local/share/com.archfan.trashmusic
 ```
 
-The plugin settings file lives alongside that session data at:
+Managed plugin configuration lives at:
 
 ```bash
-~/.local/share/com.archfan.trashmusic/plugin-settings.json
+~/.config/com.archfan.trashmusic/plugin-settings.json
 ```
 
 ## Home Manager
