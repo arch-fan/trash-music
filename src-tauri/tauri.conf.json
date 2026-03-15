@@ -28,6 +28,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Music",
+    "shortDescription": "Unofficial YouTube Music desktop client",
+    "longDescription": "Unofficial YouTube Music desktop client built with Tauri 2, Nix flakes, Discord RPC, and plugin support.",
+    "homepage": "https://github.com/arch-fan/trash-music",
+    "publisher": "arch-fan",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
