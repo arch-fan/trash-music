@@ -1,0 +1,27 @@
+[package]
+name = "trash-music"
+version = "0.1.0"
+description = "YouTube Music desktop wrapper built with Tauri"
+authors = ["Juan"]
+edition = "2021"
+license = "MIT"
+homepage = "https://github.com/arch-fan/trash-music"
+repository = "https://github.com/arch-fan/trash-music"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "trash_music_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+discord-rich-presence = "1.1.0"

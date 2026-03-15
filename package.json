@@ -1,0 +1,20 @@
+{
+  "name": "trash-music",
+  "private": true,
+  "version": "0.1.0",
+  "description": "YouTube Music desktop wrapper built with Tauri",
+  "license": "MIT",
+  "homepage": "https://github.com/arch-fan/trash-music",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arch-fan/trash-music.git"
+  },
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}
