@@ -85,6 +85,13 @@
             ];
             buildInputs = tauriRuntime;
 
+            postInstall = ''
+              if [ -f "$out/share/applications/Trash Music.desktop" ]; then
+                mv "$out/share/applications/Trash Music.desktop" \
+                  "$out/share/applications/trash-music.desktop"
+              fi
+            '';
+
             preFixup = ''
               gappsWrapperArgs+=(
                 --set-default WEBKIT_DISABLE_DMABUF_RENDERER 1
